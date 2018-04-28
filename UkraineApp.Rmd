@@ -8,8 +8,6 @@ runtime: shiny
 
 ```{r}
 library(dplyr)
-library(magrittr)
-library(tidyr)
 library(shiny)
 library(leaflet)
 ```
