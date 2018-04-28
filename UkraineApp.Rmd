@@ -46,9 +46,7 @@ ui <- bootstrapPage(
       max = max(df$year),
       value = range(df$year),
       step=1
-    ),
-    # plot in the UI
-    plotOutput("plot")
+    )
   )
   
 ),
@@ -60,44 +58,11 @@ server <- function(input, output, session) {
     df[df$year >= input$range[1] & df$year <= input$range[2],]
   })
   
-  
-  markersInBounds <- reactive({
-    if (is.null(input$map_bounds))
-      return(filteredData()[FALSE,])
-    bounds <- input$map_bounds
-    latRng <- range(bounds$north, bounds$south)
-    lngRng <- range(bounds$east, bounds$west)
-    
-    subset(filteredData(),
-           latitude >= latRng[1] & latitude <= latRng[2] &
-             longitude >= lngRng[1] & longitude <= lngRng[2])
-  })
-  
   # map that is output
   output$map <- renderLeaflet({
     leaflet(df) %>%
       fitBounds(~min(longitude), ~min(latitude), ~max(longitude), ~max(latitude)) %>%
     addProviderTiles(input$map)
-  })
-  
-  # UI plot 
-  output$plot <- renderPlot({
-    if(nrow(filteredData()) == 0)
-      return(NULL)
-    print(ggplot(filteredData()$plot, aes(x=filteredData()$year, y=filteredData()$best_est)) + 
-      geom_line() + geom_point() + 
-      scale_y_continuous("Number of Fatalities") +
-      scale_x_continuous('Year') + 
-      ggtitle('') +
-      theme_bw()+
-      theme(
-        axis.text.x = element_text(angle=45, size=7),
-        axis.ticks = element_blank(),
-        legend.title = element_blank(),
-        panel.border = element_blank(),
-        legend.position = 'top'
-      ))
-    
   })
   
   
