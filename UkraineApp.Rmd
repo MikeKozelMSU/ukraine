@@ -1,0 +1,119 @@
+---
+title: "Dynamic Conflict Map"
+author: "Mike Kozel"
+date: "April 27, 2018"
+output: html_document
+runtime: shiny
+---
+
+```{r}
+library(dplyr)
+library(magrittr)
+library(tidyr)
+library(shiny)
+library(leaflet)
+```
+
+
+
+```{r, echo=FALSE}
+shinyApp(
+ # SHiny UI
+ui <- bootstrapPage(
+  # UI Style
+  tags$style(type = "text/css", "html, body {width:100%;height:100%}"),
+  leafletOutput("map", width = "100%", height = "100%"),
+  
+  # UI panel
+  absolutePanel(
+    id = 'controls',
+    class = 'panel panel-default',
+    fixed = T,
+    height = 'auto',
+    top=50,
+    right = 50,
+    left = 'auto',
+    bottom = 'auto',
+    width = 'auto', 
+    draggable = T,
+    selectInput('map', "Map Type", choices = c( 
+                                                             "CartoDB.Positron",
+                                                             "Esri.WorldImagery"), 
+                selected = "CartoDB.Positron"),
+    # UI slider
+    sliderInput(
+      "range",
+      "year Range",
+      min= min(df$year),
+      max = max(df$year),
+      value = range(df$year),
+      step=1
+    ),
+    # plot in the UI
+    plotOutput("plot")
+  )
+  
+),
+  
+  # SHiny Server
+server <- function(input, output, session) {
+  # filter the data by the slider input
+  filteredData <- reactive({
+    df[df$year >= input$range[1] & df$year <= input$range[2],]
+  })
+  
+  
+  markersInBounds <- reactive({
+    if (is.null(input$map_bounds))
+      return(filteredData()[FALSE,])
+    bounds <- input$map_bounds
+    latRng <- range(bounds$north, bounds$south)
+    lngRng <- range(bounds$east, bounds$west)
+    
+    subset(filteredData(),
+           latitude >= latRng[1] & latitude <= latRng[2] &
+             longitude >= lngRng[1] & longitude <= lngRng[2])
+  })
+  
+  # map that is output
+  output$map <- renderLeaflet({
+    leaflet(df) %>%
+      fitBounds(~min(longitude), ~min(latitude), ~max(longitude), ~max(latitude)) %>%
+    addProviderTiles(input$map)
+  })
+  
+  # UI plot 
+  output$plot <- renderPlot({
+    if(nrow(filteredData()) == 0)
+      return(NULL)
+    print(ggplot(filteredData()$plot, aes(x=filteredData()$year, y=filteredData()$best_est)) + 
+      geom_line() + geom_point() + 
+      scale_y_continuous("Number of Fatalities") +
+      scale_x_continuous('Year') + 
+      ggtitle('') +
+      theme_bw()+
+      theme(
+        axis.text.x = element_text(angle=45, size=7),
+        axis.ticks = element_blank(),
+        legend.title = element_blank(),
+        panel.border = element_blank(),
+        legend.position = 'top'
+      ))
+    
+  })
+  
+  
+  # Map points that are being changed
+  observe({
+    
+    leafletProxy("map", data = filteredData()) %>%
+      clearShapes() %>% clearPopups() %>% clearMarkers() %>% clearMarkerClusters() %>% 
+      addCircleMarkers(lng=~longitude, lat=~latitude, popup = ~paste(paste("<h3>", filteredData()$conflict_name, "</h3>"), 
+                                                                     paste("<b>Side A:</b>", side_a, "<br>", "<b>Side B:</b>", side_b, "<br>",
+                                                                           "<b>Date:</b>", paste(date_start, date_end, sep = " - "), '<br>', "<b>Casualties:</b>", best_est , sep = " ")),
+                       clusterOptions = markerClusterOptions())
+  })
+  
+}
+)
+```
